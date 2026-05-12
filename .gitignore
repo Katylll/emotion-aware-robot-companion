@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environments
+.env
+.venv/
+venv/
+emotion-robot/
+
+# Data
+data/
+*.csv
+*.zip
+
+# Large model files
+models/*.pth
+models/*.onnx
+*.pth
+*.onnx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Reports temporary files
+*.tmp
+~$*
