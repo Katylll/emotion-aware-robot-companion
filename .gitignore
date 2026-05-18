@@ -14,6 +14,9 @@ data/
 *.csv
 *.zip
 
+# Allow small report/output tables
+!figures/fer2013_class_counts.csv
+
 # Large model files
 models/*.pth
 models/*.onnx
