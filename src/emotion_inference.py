@@ -7,8 +7,23 @@ import mediapipe as mp
 import numpy as np
 import onnxruntime as ort
 
+import serial
+from collections import deque
 
 MODEL_PATH = "models/emotion_model.onnx"
+SERIAL_PORT = "/dev/cu.usbmodem14302"  # replace with your actual micro:bit port
+BAUD_RATE = 115200
+ENABLE_ROBOT = True
+
+CMD_MAP = {
+    "Angry": b"A",
+    "Disgust": b"D",
+    "Fear": b"F",
+    "Happy": b"H",
+    "Neutral": b"N",
+    "Sad": b"S",
+    "Surprise": b"U",
+}
 
 # IMPORTANT:
 # This order must match PyTorch ImageFolder alphabetical class order.
@@ -87,7 +102,18 @@ def create_oak_camera_queue():
 
 def main():
     sess, input_name = load_onnx_model(MODEL_PATH)
+    ser = None
 
+    if ENABLE_ROBOT:
+        print(f"Opening robot serial port: {SERIAL_PORT}")
+        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        time.sleep(2)
+        print("Robot serial connected.")
+   
+    history = deque(maxlen=7)
+    last_sent = None
+    last_send_time = 0
+    SEND_COOLDOWN = 1.5
     mp_face_detection = mp.solutions.face_detection
 
     face_detector = mp_face_detection.FaceDetection(
@@ -134,11 +160,29 @@ def main():
                 if face_crop.size > 0:
                     emotion, conf = infer_emotion(face_crop, sess, input_name)
 
-                    if conf < 0.45:
+                    if conf < 0.50:
                         display_label = f"Uncertain {conf:.0%}"
+                        stable_emotion = None
                     else:
                         display_label = f"{emotion} {conf:.0%}"
+                        stable_emotion = emotion
 
+                    if ENABLE_ROBOT and ser is not None and stable_emotion is not None:
+                        history.append(stable_emotion)
+
+                        now = time.time()
+                        is_stable = len(history) == history.maxlen and len(set(history)) == 1
+                        cooldown_passed = now - last_send_time > SEND_COOLDOWN
+
+                        if is_stable and stable_emotion != last_sent and cooldown_passed:
+                            cmd = CMD_MAP.get(stable_emotion)
+
+                            if cmd is not None:
+                                ser.write(cmd)
+                                print(f"Sent to robot: {stable_emotion} -> {cmd}")
+
+                                last_sent = stable_emotion
+                                last_send_time = now
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 200, 100), 2)
                     cv2.putText(
                         frame,
@@ -190,7 +234,11 @@ def main():
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-
+    if ser is not None:
+        ser.write(b"N")
+        time.sleep(0.2)
+        ser.close()
+        print("Robot serial closed.")
     cv2.destroyAllWindows()
 
 
