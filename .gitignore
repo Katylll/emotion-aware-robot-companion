@@ -20,6 +20,8 @@ data/
 # Large model files
 models/*.pth
 models/*.onnx
+models/
+*.onnx.data
 *.pth
 *.onnx
 
